@@ -215,94 +215,96 @@ start:
  * open input files - up to 7 levels.
  */
 
-void 
-resolve_full_path(char *resolved_path, const char *base_path, const char *relative_path) {
-	strcpy(resolved_path, base_path);
-	strcat(resolved_path, PATH_SEPARATOR_STRING);
-	strcat(resolved_path, relative_path);
+void resolve_full_path(char *resolved_path, const char *base_path, const char *relative_path) {
+    strcpy(resolved_path, base_path);
+    strcat(resolved_path, PATH_SEPARATOR_STRING);
+    strcat(resolved_path, relative_path);
 }
 
-int
-open_input(char *name)
-{
-	FILE *fp;
-	char *p;
-	char  temp[128];
-	char resolved_path[256];
-	int   i;
+int open_input(char *name) {
+    FILE *fp;
+    char *p;
+    char temp[128];
+    char resolved_path[256];
+    char original_path[256];
+    int i;
 
-	/* only 7 nested input files */
-	if (infile_num == 7) {
-		error("Too many include levels, max. 7!");
-		return (1);
-	}
+    /* only 7 nested input files */
+    if (infile_num == 7) {
+        error("Too many include levels, max. 7!");
+        return (1);
+    }
 
-	/* backup current input file infos */
-	if (infile_num) {
-		input_file[infile_num].lnum = slnum;
-		input_file[infile_num].fp = in_fp;
-	}
+    /* backup current input file infos */
+    if (infile_num) {
+        input_file[infile_num].lnum = slnum;
+        input_file[infile_num].fp = in_fp;
+    }
 
-	/* get a copy of the file name */
-	strcpy(temp, name);
+    /* get a copy of the file name */
+    strcpy(temp, name);
 
-	/* auto add the .asm file extension */
-	if ((p = strrchr(temp, '.')) != NULL) {
-		if (strchr(p, PATH_SEPARATOR))
-			strcat(temp, ".asm");
-	}
-	else {
-		strcat(temp, ".asm");
-	}
+    /* auto add the .asm file extension */
+    if ((p = strrchr(temp, '.')) != NULL) {
+        if (strchr(p, PATH_SEPARATOR))
+            strcat(temp, ".asm");
+    } else {
+        strcat(temp, ".asm");
+    }
 
-	/* check if this file is already opened */
-	if (infile_num) {
-		for (i = 1; i < infile_num; i++) {
-			if (!strcmp(input_file[i].name, temp)) {
-				error("Repeated include file!");
-				return (1);
-			}
-		}
-	}
+    /* check if this file is already opened */
+    if (infile_num) {
+        for (i = 1; i < infile_num; i++) {
+            if (!strcmp(input_file[i].name, temp)) {
+                error("Repeated include file!");
+                return (1);
+            }
+        }
+    }
 
-	/* find the correct directory */
-	char directory[128];
-	if (infile_num == 0) {
-		/* use current directory if it's the top-level file */
-		strcpy(directory, ".");
-	} else {
-		/* retrieve the directory of the included file */
-		strcpy(directory, input_file[infile_num].name);
-		char *last_separator = strrchr(directory, PATH_SEPARATOR);
-		if (last_separator != NULL) {
-			*last_separator = '\0';
-		} else {
-			strcpy(directory, ".");
-		}
-	}
+    /* find the correct directory */
+    char directory[128];
+    if (infile_num == 0) {
+        /* use current directory if it's the top-level file */
+        strcpy(directory, ".");
+    } else {
+        /* retrieve the directory of the included file */
+        strcpy(directory, input_file[infile_num].name);
+        char *last_separator = strrchr(directory, PATH_SEPARATOR);
+        if (last_separator != NULL) {
+            *last_separator = '\0';
+        } else {
+            strcpy(directory, ".");
+        }
+    }
 
-	/* Resolve the full path of the included file */
-	resolve_full_path(resolved_path, directory, temp);
+    /* Resolve the full path of the included file */
+    resolve_full_path(resolved_path, directory, temp);
 
-	/* open the file */
-	if ((fp = fopen(resolved_path, "r")) == NULL) {
-		return (-1);
-	}
+    /* Try to open the file in the resolved path directory */
+    if ((fp = fopen(resolved_path, "r")) == NULL) {
+        /* If the file is not found in the resolved directory, try the include paths */
+        fp = open_file(temp, "r");
+    }
 
-	/* update input file infos */
-	in_fp = fp;
-	slnum = 0;
-	infile_num++;
-	input_file[infile_num].fp = fp;
-	input_file[infile_num].if_level = if_level;
-	strcpy(input_file[infile_num].name, resolved_path);
-	if ((pass == LAST_PASS) && (xlist) && (list_level))
-		fprintf(lst_fp, "#[%i]   %s\n", infile_num, input_file[infile_num].name);
+    if (fp == NULL) {
+        /* If still not found, return error */
+        return (-1);
+    }
 
-	/* ok */
-	return (0);
+    /* update input file infos */
+    in_fp = fp;
+    slnum = 0;
+    infile_num++;
+    input_file[infile_num].fp = fp;
+    input_file[infile_num].if_level = if_level;
+    strcpy(input_file[infile_num].name, resolved_path);
+    if ((pass == LAST_PASS) && (xlist) && (list_level))
+        fprintf(lst_fp, "#[%i]   %s\n", infile_num, input_file[infile_num].name);
+
+    /* ok */
+    return (0);
 }
-
 
 /* ----
  * close_input()
