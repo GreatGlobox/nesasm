@@ -215,12 +215,20 @@ start:
  * open input files - up to 7 levels.
  */
 
+void 
+resolve_full_path(char *resolved_path, const char *base_path, const char *relative_path) {
+	strcpy(resolved_path, base_path);
+	strcat(resolved_path, PATH_SEPARATOR_STRING);
+	strcat(resolved_path, relative_path);
+}
+
 int
 open_input(char *name)
 {
 	FILE *fp;
 	char *p;
 	char  temp[128];
+	char resolved_path[256];
 	int   i;
 
 	/* only 7 nested input files */
@@ -233,7 +241,7 @@ open_input(char *name)
 	if (infile_num) {
 		input_file[infile_num].lnum = slnum;
 		input_file[infile_num].fp = in_fp;
-	}				
+	}
 
 	/* get a copy of the file name */
 	strcpy(temp, name);
@@ -255,11 +263,31 @@ open_input(char *name)
 				return (1);
 			}
 		}
-	}				
+	}
+
+	/* find the correct directory */
+	char directory[128];
+	if (infile_num == 0) {
+		/* use current directory if it's the top-level file */
+		strcpy(directory, ".");
+	} else {
+		/* retrieve the directory of the included file */
+		strcpy(directory, input_file[infile_num].name);
+		char *last_separator = strrchr(directory, PATH_SEPARATOR);
+		if (last_separator != NULL) {
+			*last_separator = '\0';
+		} else {
+			strcpy(directory, ".");
+		}
+	}
+
+	/* Resolve the full path of the included file */
+	resolve_full_path(resolved_path, directory, temp);
 
 	/* open the file */
-	if ((fp = open_file(temp, "r")) == NULL)
+	if ((fp = fopen(resolved_path, "r")) == NULL) {
 		return (-1);
+	}
 
 	/* update input file infos */
 	in_fp = fp;
@@ -267,7 +295,7 @@ open_input(char *name)
 	infile_num++;
 	input_file[infile_num].fp = fp;
 	input_file[infile_num].if_level = if_level;
-	strcpy(input_file[infile_num].name, temp);
+	strcpy(input_file[infile_num].name, resolved_path);
 	if ((pass == LAST_PASS) && (xlist) && (list_level))
 		fprintf(lst_fp, "#[%i]   %s\n", infile_num, input_file[infile_num].name);
 
