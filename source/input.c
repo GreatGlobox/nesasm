@@ -349,26 +349,36 @@ close_input(void)
  * open a file - browse paths
  */
 
-FILE *
-open_file(char *name, char *mode)
-{
-	FILE 	*fileptr;
-	char	testname[256];
-	int	i;
+FILE *open_file(char *name, char *mode) {
+    FILE *fileptr;
+    char testname[256];
+    char base_path[256];
+    int i;
 
-	fileptr = fopen(name, mode);
-	if (fileptr != NULL) return(fileptr);
+    /* Attempt to open a file */
+    fileptr = fopen(name, mode);
+    if (fileptr != NULL) return fileptr;
 
-	for (i = 0; i < 10; i++) {
-		if (strlen(incpath[i])) {
-			strcpy(testname, incpath[i]);
-			strcat(testname, name);
-	
-			fileptr = fopen(testname, mode);
-			if (fileptr != NULL) break;
-		}
-	}
+    /* Get the base path from the current input file's name */
+    strcpy(base_path, input_file[infile_num].name);
+    char *dir = dirname(base_path);
 
-	return (fileptr);
+    /* Resolve the full path relative to the base path */
+    resolve_full_path(testname, dir, name);
+
+    /* Attempt to open the file in the resolved path directory */
+    fileptr = fopen(testname, mode);
+    if (fileptr != NULL) return fileptr;
+
+    /* Fallback to include paths */
+    for (i = 0; i < 10; i++) {
+        if (strlen(incpath[i])) {
+            resolve_full_path(testname, incpath[i], name);
+            fileptr = fopen(testname, mode);
+            if (fileptr != NULL) break;
+        }
+    }
+
+    return fileptr;
 }
 
